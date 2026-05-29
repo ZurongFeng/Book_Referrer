@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>书籍推荐小票 - 你的心情书单</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/html-to-image@1.11.11/dist/html-to-image.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Special+Elite&display=swap');
+        
+        body {
+            font-family: 'Special Elite', 'Noto Serif SC', serif;
+            transition: background-color 0.3s, color 0.3s;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .receipt-container {
+            width: 340px;
+            min-height: 580px;
+            background-color: var(--receipt-bg, #fcf5e5);
+            background-image: url("https://www.transparenttextures.com/patterns/papyros.png");
+            padding: 40px 25px 20px 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            color: var(--receipt-text, #2c2c2c);
+            transition: all 0.5s ease;
+        }
+
+        /* Zigzag edge */
+        .receipt-zigzag {
+            width: 340px;
+            height: 12px;
+            background-image: 
+                linear-gradient(135deg, var(--receipt-bg) 6px, transparent 0),
+                linear-gradient(225deg, var(--receipt-bg) 6px, transparent 0);
+            background-position: left top;
+            background-size: 12px 12px;
+            background-repeat: repeat-x;
+            filter: drop-shadow(0 5px 5px rgba(0,0,0,0.1));
+            transition: all 0.5s ease;
+        }
+
+        /* Capture Wrapper */
+        .receipt-capture-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px;
+            background-color: transparent;
+        }
+
+        /* Dynamic Receipt Colors based on Theme */
+        .theme-focus {
+            --receipt-bg: #fcf5e5;
+            --receipt-text: #2c2c2c;
+            --receipt-border: rgba(0,0,0,0.1);
+            --btn-sec-text: rgb(38, 38, 38);
+        }
+
+        .theme-silent {
+            --receipt-bg: rgb(35, 48, 115);
+            --receipt-text: rgb(204, 237, 255);
+            --receipt-border: rgba(255,255,255,0.1);
+            --btn-sec-text: white;
+        }
+
+        .theme-ponder {
+            --receipt-bg: rgb(100, 149, 237);
+            --receipt-text: rgb(35, 48, 115);
+            --receipt-accent: rgb(230, 255, 255); /* 白兰色，用于小字和线条 */
+            --receipt-border: rgba(230, 255, 255, 0.4);
+            --btn-sec-text: white;
+        }
+
+        /* Update internal elements to use the dynamic text color */
+        .receipt-container .border-black\/10 { border-color: var(--receipt-border); }
+        .receipt-container .border-dashed { border-color: var(--receipt-border); }
+        .receipt-container .bg-black\/10 { background-color: var(--receipt-border); }
+        
+        /* Specific visibility fixes for sub-text */
+        .receipt-container .opacity-40, 
+        .receipt-container .opacity-50,
+        .receipt-container .opacity-30 { 
+            color: var(--receipt-accent, var(--receipt-text)); 
+            opacity: 0.6; 
+        }
+        .receipt-container .opacity-80,
+        .receipt-container .opacity-90 { 
+            color: var(--receipt-text); 
+            opacity: 0.9; 
+        }
+
+        .typewriter {
+            font-family: 'Special Elite', 'Times New Roman', 'STKaiti', 'KaiTi', serif;
+        }
+
+        .theme-silent { background-color: rgb(38, 38, 38); color: rgb(100, 149, 237); }
+        .theme-focus { background-color: rgb(255, 239, 200); color: rgb(38, 38, 38); }
+        .theme-ponder { background-color: rgb(35, 48, 115); color: rgb(204, 237, 255); }
+
+        .btn-theme {
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            transition: all 0.2s;
+            border: 1px solid currentColor;
+            opacity: 0.6;
+            background: transparent;
+            color: inherit;
+        }
+
+        .btn-theme.active {
+            opacity: 1;
+            font-weight: 900;
+            border-width: 1.5px;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .option-btn {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.8125rem;
+            transition: all 0.2s;
+            border: 1px solid rgba(255,255,255,0.15);
+            background: rgba(255,255,255,0.03);
+            color: inherit;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 36px;
+        }
+
+        .option-btn.active {
+            font-weight: 900;
+            border-width: 1.5px;
+            border-color: currentColor;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 6px;
+        }
+
+        @media (max-width: 380px) {
+            .options-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+
+        .btn-primary {
+            background-color: var(--receipt-bg);
+            color: var(--receipt-text);
+            font-weight: bold;
+            padding: 1rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            box-shadow: 0 10px 15px rgba(0,0,0,0.2);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background-color: rgba(255,255,255,0.1);
+            color: var(--btn-sec-text, white);
+            font-weight: bold;
+            padding: 1rem;
+            border-radius: 1rem;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .btn-secondary:hover {
+            background-color: rgba(255,255,255,0.2);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="theme-silent min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const moods = [
+            { id: 'happy', label: '愉悦', keywords: ['温暖', '幸福', '喜悦', '阳光', '笑'] },
+            { id: 'easy', label: '轻松', keywords: ['轻松', '惬意', '悠闲', '散步', '简单'] },
+            { id: 'calm', label: '平静', keywords: ['平静', '宁静', '思考', '淡定', '安宁'] },
+            { id: 'energetic', label: '振奋', keywords: ['力量', '梦想', '拼搏', '热血', '勇气'] },
+            { id: 'miss', label: '思念', keywords: ['思念', '故乡', '回忆', '怀念', '往事'] },
+            { id: 'sad_heavy', label: '悲伤', keywords: ['痛苦', '悲伤', '离别', '沉重', '泪'] },
+            { id: 'sad', label: '忧郁', keywords: ['忧郁', '孤独', '彷徨', '忧伤', '深沉'] },
+            { id: 'tired', label: '倦怠', keywords: ['治愈', '休息', '慢生活', '温暖', '停留'] },
+            { id: 'confused', label: '迷茫', keywords: ['意义', '寻找', '自我', '迷茫', '困惑'] },
+            { id: 'lonely', label: '孤单', keywords: ['陪伴', '灵魂', '对话', '独自', '寂寞'] }
+        ];
+
+        const weathers = [
+            { id: 'sunny', label: '晴', keywords: ['灿烂', '明媚', '晴朗', '阳光'] },
+            { id: 'cloudy', label: '云', keywords: ['云', '阴天', '沉静', '天空'] },
+            { id: 'rainy', label: '雨', keywords: ['雨', '湿润', '伞', '潮湿'] },
+            { id: 'snowy', label: '雪', keywords: ['雪', '冬', '洁白', '寒冷'] },
+            { id: 'windy', label: '风', keywords: ['风', '自由', '飞翔', '旷野'] }
+        ];
+
+        const themes = [
+            { id: 'silent', label: '静谧', class: 'theme-silent' },
+            { id: 'focus', label: '专注', class: 'theme-focus' },
+            { id: 'ponder', label: '沉思', class: 'theme-ponder' }
+        ];
+
+        function App() {
+            const [books, setBooks] = useState([]);
+            const [selectedMood, setSelectedMood] = useState('happy');
+            const [selectedWeather, setSelectedWeather] = useState('sunny');
+            const [selectedTheme, setSelectedTheme] = useState('silent');
+            const [recommendedBook, setRecommendedBook] = useState(null);
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [error, setError] = useState(null);
+            const [showReceipt, setShowReceipt] = useState(false);
+            const receiptRef = useRef(null);
+
+            useEffect(() => {
+                console.log("Fetching books.json...");
+                fetch('books.json')
+                    .then(res => {
+                        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+                        return res.json();
+                    })
+                    .then(data => {
+                        console.log("Books loaded:", data.length);
+                        setBooks(data);
+                        if (data.length > 0) {
+                            setRecommendedBook(data[Math.floor(Math.random() * data.length)]);
+                        } else {
+                            throw new Error("书籍数据为空");
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Failed to load books:", err);
+                        setError(err.message);
+                    });
+            }, []);
+
+            const handleRecommend = () => {
+                if (books.length > 0) {
+                    const currentMood = moods.find(m => m.id === selectedMood).label;
+                    const currentWeather = weathers.find(w => w.id === selectedWeather).label;
+
+                    // Filter books that match Mood OR Weather
+                    let candidates = books.filter(book => 
+                        (book.moods && book.moods.includes(currentMood)) || 
+                        (book.weathers && book.weathers.includes(currentWeather))
+                    );
+
+                    // If no matches (should not happen with the new tagging), fallback to all
+                    const finalPool = candidates.length > 0 ? candidates : books;
+                    const randomBook = finalPool[Math.floor(Math.random() * finalPool.length)];
+                    
+                    setRecommendedBook(randomBook);
+                    confetti({
+                        particleCount: 100,
+                        spread: 70,
+                        origin: { y: 0.6 }
+                    });
+                }
+            };
+
+            const saveReceipt = () => {
+                if (receiptRef.current) {
+                    setIsGenerating(true);
+                    
+                    // Determine page background color based on theme
+                    const pageColors = {
+                        silent: 'rgb(38, 38, 38)',
+                        focus: 'rgb(255, 239, 200)',
+                        ponder: 'rgb(35, 48, 115)'
+                    };
+                    
+                    const scale = 3; 
+                    htmlToImage.toPng(receiptRef.current, { 
+                        quality: 1, 
+                        pixelRatio: scale,
+                        backgroundColor: pageColors[selectedTheme] || '#262626'
+                    })
+                        .then((dataUrl) => {
+                            const link = document.createElement('a');
+                            link.download = `book-receipt-${Date.now()}.png`;
+                            link.href = dataUrl;
+                            link.click();
+                            setIsGenerating(false);
+                        })
+                        .catch((err) => {
+                            console.error('oops, something went wrong!', err);
+                            setIsGenerating(false);
+                        });
+                }
+            };
+
+            const Icon = ({ name, size = 20, className = "" }) => {
+                // Simplified icon renderer for CDN usage
+                return <span className={className} dangerouslySetInnerHTML={{ __html: `<i data-lucide="${name.toLowerCase()}" style="width: ${size}px; height: ${size}px;"></i>` }} />;
+            };
+
+            const formatTitle = (title) => {
+                if (!title) return "";
+                
+                // First, handle explicit breaks from colons and parentheses
+                let processed = title
+                    .replace('：', '：<br>')
+                    .replace('（', '<br>（')
+                    .replace('(', '<br>(');
+
+                // Then, for each segment (line), check if it exceeds 11 characters
+                const segments = processed.split('<br>');
+                const breakChars = ['的', '，', '：', '(', '（'];
+                
+                const smartBreak = (text) => {
+                    if (text.length <= 11) return text;
+                    
+                    const chunk = text.substring(0, 12); // Look at first 11 chars + 1 for context
+                    let bestIdx = -1;
+                    
+                    for (const char of breakChars) {
+                        const idx = chunk.lastIndexOf(char);
+                        if (idx > bestIdx) bestIdx = idx;
+                    }
+                    
+                    if (bestIdx !== -1) {
+                        return text.substring(0, bestIdx + 1) + '<br>' + smartBreak(text.substring(bestIdx + 1));
+                    }
+                    
+                    // Fallback: forced break at 11
+                    return text.substring(0, 11) + '<br>' + smartBreak(text.substring(11));
+                };
+
+                const finalTitle = segments.map(seg => smartBreak(seg)).join('<br>');
+                return `「${finalTitle}」`;
+            };
+
+            const formatSentence = (text) => {
+                if (!text) return "";
+                if (text.length <= 20) return text;
+
+                // If already has <br> (like the quotes we processed), keep it but check segments
+                if (text.includes('<br>')) {
+                    return text.split('<br>').map(part => formatSentence(part)).join('<br>');
+                }
+
+                // Find the best break point within first 20 chars
+                const segment = text.substring(0, 21);
+                const breakChars = ['，', '：', '；', ',', ':', ';'];
+                let bestIdx = -1;
+
+                for (const char of breakChars) {
+                    const idx = segment.lastIndexOf(char);
+                    if (idx > bestIdx) bestIdx = idx;
+                }
+
+                if (bestIdx !== -1) {
+                    return text.substring(0, bestIdx + 1) + '<br>' + formatSentence(text.substring(bestIdx + 1));
+                }
+
+                // Fallback: if no break char found, just return original or force break at 20
+                return text.substring(0, 20) + '<br>' + formatSentence(text.substring(20));
+            };
+
+            useEffect(() => {
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
+            }, [selectedMood, selectedWeather, recommendedBook]);
+
+            if (error) return (
+                <div className="flex flex-col items-center justify-center h-screen p-8 text-center bg-gray-900 text-white">
+                    <div className="text-red-500 mb-4 text-5xl">⚠️</div>
+                    <h2 className="text-xl font-bold mb-2">数据加载失败</h2>
+                    <p className="opacity-70 mb-6">{error}</p>
+                    <div className="bg-white/10 p-4 rounded-lg text-sm text-left mb-6">
+                        <p>请尝试以下操作：</p>
+                        <ul className="list-disc ml-5 mt-2 space-y-1">
+                            <li>确保通过 <b>http://localhost:8000</b> 访问，而不是直接打开文件。</li>
+                            <li>检查 <b>books.json</b> 是否与 index.html 在同一目录下。</li>
+                            <li>确保浏览器联网以加载 CDN 资源。</li>
+                        </ul>
+                    </div>
+                    <button onClick={() => window.location.reload()} className="bg-blue-500 hover:bg-blue-600 px-6 py-2 rounded-full font-bold transition-colors">
+                        重新加载
+                    </button>
+                </div>
+            );
+
+            if (!books.length) return (
+                <div className="flex flex-col items-center justify-center h-screen bg-gray-900 text-white">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+                    <p className="text-lg typewriter">正在加载书籍数据...</p>
+                </div>
+            );
+
+            return (
+                <div className={`min-h-screen flex flex-col items-center py-8 px-4 transition-colors duration-500 ${themes.find(t => t.id === selectedTheme).class}`}>
+                    <header className="mb-8 text-center">
+                        <h1 className="text-3xl font-bold mb-2 typewriter">Book Receipt</h1>
+                        <p className="opacity-80">为你推荐一本此时此刻的书</p>
+                    </header>
+
+                    <main className="w-full max-w-md flex flex-col items-center gap-8">
+                        {/* Selectors */}
+                        <div className="w-full bg-black/10 backdrop-blur-md rounded-2xl p-6 flex flex-col gap-6 shadow-xl border border-white/10">
+                            <div>
+                                <label className="text-[10px] uppercase tracking-[0.2em] mb-3 block opacity-50">Mood / 心情</label>
+                                <div className="options-grid">
+                                    {moods.map(m => (
+                                        <button 
+                                            key={m.id}
+                                            onClick={() => setSelectedMood(m.id)}
+                                            className={`option-btn ${selectedMood === m.id ? 'active' : ''}`}
+                                        >
+                                            {m.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] uppercase tracking-[0.2em] mb-3 block opacity-50">Weather / 天气</label>
+                                <div className="options-grid">
+                                    {weathers.map(w => (
+                                        <button 
+                                            key={w.id}
+                                            onClick={() => setSelectedWeather(w.id)}
+                                            className={`option-btn ${selectedWeather === w.id ? 'active' : ''}`}
+                                        >
+                                            {w.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] uppercase tracking-[0.2em] mb-3 block opacity-50">Theme / 配色</label>
+                                <div className="flex gap-3">
+                                    {themes.map(t => (
+                                        <button 
+                                            key={t.id}
+                                            onClick={() => setSelectedTheme(t.id)}
+                                            className={`btn-theme ${selectedTheme === t.id ? 'active' : ''}`}
+                                        >
+                                            {t.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {!showReceipt ? (
+                            <button 
+                                onClick={() => {
+                                    handleRecommend();
+                                    setShowReceipt(true);
+                                }}
+                                className="btn-primary mt-8 py-6 text-xl"
+                            >
+                                <Icon name="BookOpen" size={24} />
+                                <span>我想认识的下一本书</span>
+                            </button>
+                        ) : (
+                            <>
+                                {/* Receipt Preview */}
+                                <div className="relative group animate-in fade-in zoom-in duration-700">
+                                    <div ref={receiptRef} className="receipt-capture-wrapper">
+                                        <div className="receipt-container typewriter">
+                                            <div className="flex justify-between items-start border-b border-black/10 pb-4 mb-6">
+                                                <div className="flex flex-col">
+                                                    <span className="text-2xl font-bold tracking-tighter">RECEIPT</span>
+                                                    <span className="text-[10px] opacity-40"># {Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}</span>
+                                                </div>
+                                                <div className="text-right flex flex-col">
+                                                    <span className="text-xs font-bold">{new Date().toLocaleDateString()}</span>
+                                                    <span className="text-[10px] opacity-40">DOUBAN TOP 250</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="receipt-content">
+                                                <div className="space-y-4 mb-8">
+                                                    <div className="flex justify-between text-[11px] border-b border-dashed border-black/10 pb-1">
+                                                        <span className="opacity-50">MOOD / 心情</span>
+                                                        <span className="font-bold">{moods.find(m => m.id === selectedMood).label}</span>
+                                                    </div>
+                                                    <div className="flex justify-between text-[11px] border-b border-dashed border-black/10 pb-1">
+                                                        <span className="opacity-50">WEATHER / 天气</span>
+                                                        <span className="font-bold">{weathers.find(w => w.id === selectedWeather).label}</span>
+                                                    </div>
+                                                </div>
+
+                                                {recommendedBook && (
+                                                    <div className="text-center py-4">
+                                                        <div className="text-[9px] opacity-40 mb-3 uppercase tracking-[0.3em]">Special Recommendation</div>
+                                                        <h2 className="text-2xl font-bold mb-3 leading-tight tracking-tight" dangerouslySetInnerHTML={{ __html: formatTitle(recommendedBook.title) }} />
+                                                        <div className="text-sm mb-1 opacity-90">{recommendedBook.author}</div>
+                                                        <div className="text-[10px] opacity-50 mb-6">{recommendedBook.publisher} · {recommendedBook.year}</div>
+                                                        
+                                                        <div className="inline-block border-y border-black/10 py-1 px-4 text-xs italic mb-8">
+                                                            Rating: {recommendedBook.rating} / 10
+                                                        </div>
+
+                                                        <p className="text-sm leading-relaxed px-1 text-center italic opacity-80" dangerouslySetInnerHTML={{ __html: formatSentence(recommendedBook.sentence) || "这本书暂时没有一句话介绍，但它绝对值得你翻开一读。" }} />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="mt-auto pt-10 flex flex-col items-center">
+                                                <div className="w-24 h-[1px] bg-black/10 mb-4"></div>
+                                                <div className="text-center">
+                                                    <div className="text-[11px] font-bold mb-1">今日宜读</div>
+                                                    <div className="text-[9px] opacity-30 uppercase tracking-[0.4em]">Read in Peace</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="receipt-zigzag"></div>
+                                    </div>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex gap-4 w-full animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
+                                    <button 
+                                        onClick={handleRecommend}
+                                        className="flex-1 btn-secondary"
+                                    >
+                                        <Icon name="RefreshCw" size={18} />
+                                        <span>换一本</span>
+                                    </button>
+                                    <button 
+                                        onClick={saveReceipt}
+                                        disabled={isGenerating}
+                                        className="flex-1 btn-primary"
+                                    >
+                                        <Icon name="Download" size={18} />
+                                        <span>{isGenerating ? '生成中...' : '保存小票'}</span>
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </main>
+
+                    <footer className="mt-12 text-xs opacity-40 text-center max-w-xs">
+                        <p>打字机质感 · 适配 iOS & Android</p>
+                        <p className="mt-1">© 2026 书籍推荐小票生成器</p>
+                    </footer>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
